@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Calisthenics</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+:root{color-scheme:dark;--bg:#070f24;--card:#0e1b3d;--fg:#e9f1ff;--muted:#8fa3c7;--bd:#22346a;--ac:#39ff88;--acbg:#0b3a35;--ok:#39ff88;--bad:#ff6b7d;--wbg:#3a3410;--wfg:#ffe066;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:480px;margin:0 auto;padding:16px}
+.big{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700}
+.lbl{font-size:13px;color:var(--muted)}
+.cards{display:flex;gap:10px;margin-bottom:14px}
+.cnt{flex:1;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 14px}
+.cnt.on{border:2px solid var(--ac);padding:11px 13px;background:var(--acbg);box-shadow:0 0 16px rgba(57,255,136,.28)}
+.cnt .n{font-size:44px;line-height:1}
+.box{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px}
+.ex{padding:12px 0;border-top:1px solid var(--bd)}
+.ex b{display:block;font-size:16px;margin-bottom:8px}
+.row{display:flex;align-items:center;gap:8px}
+input[type=number],input[type=text]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:9px 10px;min-height:42px}
+input[type=number]{width:96px}
+input[type=text]{flex:1;min-width:0}
+button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:9px 12px;min-height:42px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.seg{display:flex;gap:6px;flex:1}
+.seg button{flex:1;padding:6px 2px;font-size:14px}
+.seg button.sel{background:var(--acbg);border-color:var(--ac);color:var(--ac);font-weight:600}
+.pri{width:100%;margin-top:8px;background:var(--ac);border-color:var(--ac);color:#070f24;font-weight:700}
+.tog{width:100%;margin-top:12px;display:flex;justify-content:space-between;align-items:center}
+.err{font-size:13px;color:var(--bad);min-height:18px;margin-top:6px}
+.hs{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;margin-top:6px}
+.hd{padding:4px 12px;font-size:14px}
+.hd>div{display:flex;justify-content:space-between;gap:8px;padding:5px 0}
+.bd{display:inline-block;font-size:12px;padding:1px 6px;border-radius:6px;background:var(--wbg);color:var(--wfg);margin-left:4px}
+.sub{font-size:13px;color:var(--muted)}
+.ed{margin-top:10px}
+.ed h3{font-size:15px;margin:12px 0 6px}
+.ed .row{margin-bottom:6px}
+.up{color:var(--ok)}.dn{color:var(--bad)}.eq{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <div class="cards">
+    <div class="cnt" id="cPush"><div class="lbl">Push</div><div class="n big" id="nPush">0</div><div class="lbl" id="tPush">&nbsp;</div></div>
+    <div class="cnt" id="cPull"><div class="lbl">Pull</div><div class="n big" id="nPull">0</div><div class="lbl" id="tPull">&nbsp;</div></div>
+  </div>
+  <div class="box" id="today"></div>
+  <button class="tog" id="ebtn"><span>Übungen anpassen</span><span>✎</span></button>
+  <div class="box ed" id="edit" hidden></div>
+  <button class="tog" id="hbtn"><span id="hlabel">Verlauf anzeigen</span><span id="hchev">▾</span></button>
+  <div id="hist" hidden></div>
+  <p class="lbl" id="stat" style="text-align:center;margin-top:16px"></p>
+</main>
+<script>
+const KEY='calisthenics-v1';
+const LAST=[['over','Drüber','↑','up'],['same','Gleich','=','eq'],['under','Drunter','↓','dn']];
+let S;
+function fresh(){
+  const names={},plans={push:[],pull:[]};let c=0;
+  const mk=(t,n)=>{const id='e'+(++c);names[id]=n;plans[t].push({id})};
+  ['Liegestütze','Dips','Pike Push-ups','Diamond Push-ups'].forEach(n=>mk('push',n));
+  ['Klimmzüge','Australian Rows','Chin-ups','Negative Klimmzüge'].forEach(n=>mk('pull',n));
+  return{idc:c,names,retired:{},plans,sessions:[]};
+}
+try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
+if(!S||!S.plans)S=fresh();
+let DB=null,UID=null;
+const DOC=()=>DB.doc('data/users/'+UID+'/app');
+function status(t){const e=document.getElementById('stat');if(e)e.textContent=t}
+function push(){
+  if(!DB||!UID)return;
+  DOC().set({json:JSON.stringify(S)}).then(()=>status('Gespeichert, auch in der Cloud')).catch(()=>status('Nur auf diesem Gerät gespeichert'));
+}
+const save=()=>{S.savedAt=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}push()};
+const vals={push:[],pull:[]};
+let histOpen=false,editOpen=false;const openIds={};
+const $=id=>document.getElementById(id);
+const count=t=>S.sessions.filter(s=>s.type===t).length;
+const nextType=()=>count('push')<=count('pull')?'push':'pull';
+const label=t=>t==='push'?'Push':'Pull';
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const fmt=d=>new Date(d).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'});
+const hasHist=id=>S.sessions.some(s=>s.ex.some(e=>e.id===id));
+const mkEx=n=>{const id='e'+(++S.idc);S.names[id]=n;return{id}};
+function resolve(id){let c=id;while(c in S.retired){if(S.retired[c]===null)return null;c=S.retired[c]}return c}
+function sync(t){while(vals[t].length<S.plans[t].length)vals[t].push({reps:'',last:''});vals[t].length=S.plans[t].length}
+function read(){const t=nextType();S.plans[t].forEach((_,i)=>{const r=$('r'+i);if(r&&vals[t][i])vals[t][i].reps=r.value})}
+
+function counters(){
+  const nt=nextType();
+  $('nPush').textContent=count('push');$('nPull').textContent=count('pull');
+  ['push','pull'].forEach(t=>{
+    $('c'+label(t)).classList.toggle('on',t===nt);
+    $('t'+label(t)).innerHTML=t===nt?'als Nächstes':'&nbsp;';
+  });
+}
+
+function lastHint(t,id){
+  for(let k=S.sessions.length-1;k>=0;k--){
+    const s=S.sessions[k];if(s.type!==t)continue;
+    const e=s.ex.find(x=>x.id===id);
+    if(e){const l=LAST.find(x=>x[0]===e.last);return '<div class="sub" style="margin:-4px 0 8px">Letztes Mal ('+fmt(s.date)+'): <b class="'+l[3]+'">'+e.reps+' Wdh. · '+l[2]+' '+l[1]+'</b></div>'}
+  }
+  return '<div class="sub" style="margin:-4px 0 8px">Noch kein Eintrag</div>';
+}
+function today(){
+  const t=nextType();sync(t);
+  let h='<div class="row" style="justify-content:space-between"><div class="big" style="font-size:26px">'+label(t)+' Day #'+(count(t)+1)+'</div><div class="lbl">Heute</div></div>';
+  S.plans[t].forEach((p,i)=>{
+    const v=vals[t][i],n=S.names[p.id];
+    h+='<div class="ex"><b>'+esc(n)+'</b>'+lastHint(t,p.id)+'<div class="row"><input type="number" min="0" inputmode="numeric" placeholder="Start-Wdh." id="r'+i+'" value="'+v.reps+'" aria-label="Wiederholungen gestartet bei '+esc(n)+'"><div class="seg" role="group" aria-label="Letzter Satz">'+
+    LAST.map(l=>'<button data-i="'+i+'" data-v="'+l[0]+'" class="'+(v.last===l[0]?'sel':'')+'">'+l[2]+' '+l[1]+'</button>').join('')+'</div></div></div>';
+  });
+  h+='<div class="lbl">Letzter Satz im Vergleich zum Start</div><div class="err" id="err"></div><button class="pri" id="fin">Training abschließen</button>';
+  $('today').innerHTML=h;
+  $('today').querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{read();vals[t][+b.dataset.i].last=b.dataset.v;today()});
+  $('fin').onclick=finish;
+}
+
+function finish(){
+  const t=nextType();read();
+  if(!S.plans[t].length){$('err').textContent='Füge mindestens eine Übung hinzu.';return}
+  for(let i=0;i<S.plans[t].length;i++)if(vals[t][i].reps===''||!vals[t][i].last){$('err').textContent='Trag bei jeder Übung Wiederholungen und letzten Satz ein.';return}
+  S.sessions.push({type:t,idx:count(t)+1,date:new Date().toISOString(),ex:S.plans[t].map((p,i)=>({id:p.id,reps:parseInt(vals[t][i].reps,10),last:vals[t][i].last}))});
+  vals[t]=[];save();all();
+}
+
+function edit(){
+  const box=$('edit');box.hidden=!editOpen;if(!editOpen)return;
+  let h='<div class="lbl">Wenn du eine Übung änderst, bleibt alles davor im Verlauf als alte Übung markiert.</div>';
+  ['push','pull'].forEach(t=>{
+    h+='<h3>'+label(t)+' Day</h3>';
+    S.plans[t].forEach((p,i)=>{h+='<div class="row"><input type="text" data-t="'+t+'" data-i="'+i+'" value="'+esc(S.names[p.id])+'" aria-label="Name Übung '+(i+1)+'"><button data-del="'+t+'" data-i="'+i+'" aria-label="Übung entfernen">🗑</button></div>'});
+    h+='<button data-add="'+t+'" style="width:100%">+ Übung hinzufügen</button>';
+  });
+  box.innerHTML=h;
+  box.querySelectorAll('input[type=text]').forEach(inp=>inp.onchange=()=>{
+    const t=inp.dataset.t,i=+inp.dataset.i,p=S.plans[t][i],nv=inp.value.trim();
+    if(!nv||nv===S.names[p.id]){inp.value=S.names[p.id];return}
+    read();
+    if(hasHist(p.id)){const n=mkEx(nv);S.retired[p.id]=n.id;S.plans[t][i]=n}else S.names[p.id]=nv;
+    save();edit();today();hist();
+  });
+  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    const t=b.dataset.del,i=+b.dataset.i,p=S.plans[t][i];read();
+    if(hasHist(p.id))S.retired[p.id]=null;
+    S.plans[t].splice(i,1);vals[t].splice(i,1);save();edit();today();hist();
+  });
+  box.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{
+    const t=b.dataset.add;read();S.plans[t].push(mkEx('Neue Übung'));sync(t);save();edit();today();
+  });
+}
+
+function hist(){
+  $('hlabel').textContent=(histOpen?'Verlauf ausblenden':'Verlauf anzeigen')+' ('+S.sessions.length+')';
+  $('hchev').textContent=histOpen?'▴':'▾';
+  const box=$('hist');box.hidden=!histOpen;
+  let h=S.sessions.length?'':'<p class="lbl" style="padding:8px 4px">Noch keine Einheiten. Schließ dein erstes Training ab.</p>';
+  [...S.sessions].reverse().forEach(s=>{
+    const id=s.type+s.idx,o=!!openIds[id],c=k=>s.ex.filter(e=>e.last===k).length;
+    h+='<button class="hs" data-id="'+id+'"><span><b>'+label(s.type)+' #'+s.idx+'</b> <span class="lbl">'+fmt(s.date)+'</span></span><span class="lbl"><span class="up">↑'+c('over')+'</span> = '+c('same')+' <span class="dn">↓'+c('under')+'</span> '+(o?'▴':'▾')+'</span></button>';
+    if(o)h+='<div class="hd">'+s.ex.map(e=>{
+      const l=LAST.find(x=>x[0]===e.last);let badge='',sub='';
+      if(e.id in S.retired){const cur=resolve(e.id);badge='<span class="bd">alte Übung</span>';sub='<div class="sub">'+(cur?'jetzt: '+esc(S.names[cur]):'entfernt')+'</div>'}
+      return '<div><div>'+esc(S.names[e.id])+badge+sub+'</div><span style="white-space:nowrap">'+e.reps+' Wdh. <b class="'+l[3]+'" aria-label="'+l[1]+'">'+l[2]+'</b></span></div>';
+    }).join('')+'</div>';
+  });
+  box.innerHTML=h;
+  box.querySelectorAll('.hs').forEach(b=>b.onclick=()=>{openIds[b.dataset.id]=!openIds[b.dataset.id];hist()});
+}
+
+function all(){counters();today();edit();hist()}
+$('hbtn').onclick=()=>{histOpen=!histOpen;hist()};
+$('ebtn').onclick=()=>{editOpen=!editOpen;edit()};
+all();
+status('Speicherung: nur auf diesem Gerät');
+(async()=>{try{
+  if(!window.claude)return;
+  const db=await claude.use('db'),user=await claude.use('user');
+  if(!db||!user)return;
+  const id=await user.id();if(!id)return;
+  DB=db;UID=id;
+  const snap=await DOC().get();
+  if(snap.exists){
+    const r=JSON.parse(snap.data().json);
+    if(r&&r.plans&&(r.savedAt||0)>(S.savedAt||0)){S=r;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}all()}
+    else if((S.savedAt||0)>(r&&r.savedAt||0))push();
+  }else if(S.sessions.length)push();
+  status('Cloud-Speicher aktiv');
+}catch(e){status('Nur auf diesem Gerät gespeichert')}})();
+</script>
+</body>
+</html>
